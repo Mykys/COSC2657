@@ -23,8 +23,10 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.gson.Gson;
 
@@ -34,9 +36,12 @@ import java.util.List;
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
     private GoogleMap mMap;
-    //double latitude;
-    //double longitude;
+    double latitude;
+    double longitude;
     protected String json;
+    //private Shop[] shops;
+    private int state;
+    //private LatLngBounds latLngBounds;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,6 +51,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+        latitude = 10.729339;
+        longitude = 106.694286;
+
     }
 
     /**
@@ -61,34 +70,34 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-        mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+        //mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
 
-        LatLng sydney = new LatLng(10.7, 106.7);
-        mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
+        LatLng RMITVN = new LatLng(10.729339, 106.694286);
+        mMap.addMarker(new MarkerOptions().position(RMITVN).title("Marker in RMIT Vietnam"));
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(RMITVN));
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(RMITVN, 12f));
 
-/*        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-        mMap.setMyLocationEnabled(true);*/
-
-        //final String json = HttpHandler.get("http://bestlab.us:8080/places");
+        // Get the popular user buttons
+        mMap.getUiSettings().setZoomControlsEnabled(true);
 
         mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
             @Override
             public void onMapClick(LatLng latLng) {
                 Toast.makeText(MapsActivity.this, latLng.toString(), Toast.LENGTH_SHORT).show();
+                latitude = latLng.latitude;
+                longitude = latLng.longitude;
+            }
+        });
 
-                LatLng sydney = new LatLng(latLng.latitude, latLng.longitude);
-                mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-                mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
+        mMap.setOnCameraIdleListener(new GoogleMap.OnCameraIdleListener() {
+            @Override
+            public void onCameraIdle() {
+                //mMap.clear();
+                state = 1;
+                Toast.makeText(MapsActivity.this, "Hello Vinh", Toast.LENGTH_SHORT).show();
+                new GetNearbyShops().execute();
+                //List<Shop> shopsWithinZoomLevel = findShopWithinZoomLevel(shops, latLngBounds);
+                //ShowNearbyShops(shopsWithinZoomLevel);
             }
         });
 
@@ -97,10 +106,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             @Override
             public void onClick(View view) {
                 mMap.clear();
-                //new GetNearbyShops().execute();
-                GetNearbyShops getNearbyShops = new GetNearbyShops();
-                getNearbyShops.execute();
-                Toast.makeText(MapsActivity.this, "Nearby Restaurants", Toast.LENGTH_LONG).show();
+                state = 2;
+                new GetNearbyShops().execute();
+                //GetNearbyShops getNearbyShops = new GetNearbyShops();
+                //getNearbyShops.execute();
             }
         });
     }
@@ -123,20 +132,53 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             // Retrieves all shops in database
             Shop[] shops = gson.fromJson(json, Shop[].class);
-            Location loc = mMap.getMyLocation(); // Click destination
+            List<Shop> nearbyShopList = findNearbyShops(shops, latitude, longitude, 10);
 
-            List<Shop> nearbyShopList = findNearbyShops(shops, loc, 5);
-            ShowNearbyShops(nearbyShopList);
+            if (state == 1) {
+                LatLngBounds latLngBounds = mMap.getProjection().getVisibleRegion().latLngBounds;
+                List<Shop> shopsWithinZoomLevel = findShopWithinZoomLevel(nearbyShopList, latLngBounds);
+                ShowNearbyShops(shopsWithinZoomLevel);
+                Toast.makeText(MapsActivity.this, "Hello Trieu", Toast.LENGTH_SHORT).show();
+            }
+
+            if (state == 2) {
+                ShowNearbyShops(nearbyShopList);
+                Toast.makeText(MapsActivity.this, "Hello Quang", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
-    // Find nearby places from chosen location
-    private List<Shop> findNearbyShops(Shop[] shops, Location location, double radius) {
-        List<Shop> nearbyShopList = new ArrayList<>();
+    // Shop within zoom level
+    private List<Shop> findShopWithinZoomLevel (List<Shop> nearbyShopList, LatLngBounds currentCameraBounds) {
+        double x1 = currentCameraBounds.southwest.latitude;
+        double x2 = currentCameraBounds.northeast.latitude;
+        double y1 = currentCameraBounds.northeast.longitude;
+        double y2 = currentCameraBounds.southwest.longitude;
 
+        List<Shop> shopWithinZoomLevel = new ArrayList<>();
+
+        for (Shop shop : nearbyShopList) {
+            double shopLat = shop.getLat();
+            double shopLon = shop.getLon();
+            Toast.makeText(MapsActivity.this, "Hello Toan", Toast.LENGTH_SHORT).show();
+            if (shopLat >= x1 && shopLat <= x2 && shopLon >= y1 && shopLon <= y2) {
+                shopWithinZoomLevel.add(shop);
+                Toast.makeText(MapsActivity.this, shop.getName(), Toast.LENGTH_SHORT).show();
+            }
+        }
+        return shopWithinZoomLevel;
+    }
+
+    private boolean isBetween (double latitude, double longitude, LatLngBounds currentCameraBounds) {
+
+    }
+
+    // Find nearby places from chosen location
+    private List<Shop> findNearbyShops(Shop[] shops, double currLat, double currLon, double radius) {
+        List<Shop> nearbyShopList = new ArrayList<>();
         for (Shop shop : shops) {
             // Need to convert from miles to km
-            double dist = distance(shop.getLat(), shop.getLon(), location.getLatitude(), location.getLongitude());
+            double dist = distance(shop.getLat(), shop.getLon(), currLat, currLon) * 1.609344;
             if (dist <= radius) {
                 nearbyShopList.add(shop);
             }
@@ -148,14 +190,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private void ShowNearbyShops(List<Shop> nearbyShopsList) {
         for (Shop shop : nearbyShopsList) {
             MarkerOptions markerOptions = new MarkerOptions();
-            LatLng latLng = new LatLng(shop.getLat(), shop.getLat());
+            LatLng latLng = new LatLng(shop.getLat(), shop.getLon());
             markerOptions.position(latLng);
             markerOptions.title(shop.getName());
             mMap.addMarker(markerOptions);
             markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
             // move map camera
             mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
-            mMap.animateCamera(CameraUpdateFactory.zoomTo(11));
+            //mMap.animateCamera(CameraUpdateFactory.zoomTo(11));
+            //Toast.makeText(MapsActivity.this, "Hello", Toast.LENGTH_SHORT).show();
         }
     }
 
