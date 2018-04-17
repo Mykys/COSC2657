@@ -13,8 +13,10 @@ import android.os.AsyncTask;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.PopupMenu;
 import android.widget.Toast;
 
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -36,12 +38,12 @@ import java.util.List;
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
     private GoogleMap mMap;
-    double latitude;
-    double longitude;
-    protected String json;
-    //private Shop[] shops;
+    private double latitude;
+    private double longitude;
+    private String json;
     private int state;
-    //private LatLngBounds latLngBounds;
+    private LatLngBounds previousCamerBounds;
+    private List<Shop> currDisplayShops;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,28 +56,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         latitude = 10.729339;
         longitude = 106.694286;
-
+        currDisplayShops = new ArrayList<>();
     }
-
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-        //mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
 
         LatLng RMITVN = new LatLng(10.729339, 106.694286);
         mMap.addMarker(new MarkerOptions().position(RMITVN).title("Marker in RMIT Vietnam"));
         mMap.moveCamera(CameraUpdateFactory.newLatLng(RMITVN));
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(RMITVN, 12f));
+
+        // Get initial boundary values
+        previousCamerBounds = mMap.getProjection().getVisibleRegion().latLngBounds;
 
         // Get the popular user buttons
         mMap.getUiSettings().setZoomControlsEnabled(true);
@@ -93,11 +87,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             @Override
             public void onCameraIdle() {
                 //mMap.clear();
-                state = 1;
-                Toast.makeText(MapsActivity.this, "Hello Vinh", Toast.LENGTH_SHORT).show();
-                new GetNearbyShops().execute();
-                //List<Shop> shopsWithinZoomLevel = findShopWithinZoomLevel(shops, latLngBounds);
-                //ShowNearbyShops(shopsWithinZoomLevel);
+                LatLngBounds currentCameraBounds = mMap.getProjection().getVisibleRegion().latLngBounds;
+                if (isCameraViewChange(currentCameraBounds)) {
+                    mMap.clear();
+                    state = 1;
+                    new GetNearbyShops().execute();
+                }
             }
         });
 
@@ -108,8 +103,33 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 mMap.clear();
                 state = 2;
                 new GetNearbyShops().execute();
-                //GetNearbyShops getNearbyShops = new GetNearbyShops();
-                //getNearbyShops.execute();
+            }
+        });
+
+        final Button button1 = findViewById(R.id.button1);
+        button1.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // Creating the instance of PopupMenu
+                PopupMenu popup = new PopupMenu(MapsActivity.this, button1);
+                //Inflating the Popup using xml file
+                popup.getMenuInflater().inflate(R.menu.popup_menu, popup.getMenu());
+
+                //registering popup with OnMenuItemClickListener
+                popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+                    @Override
+                    public boolean onMenuItemClick(MenuItem menuItem) {
+                        Toast.makeText(MapsActivity.this, "You clicked : " + menuItem.getTitle(), Toast.LENGTH_SHORT).show();
+                        int priceRange = Integer.parseInt(menuItem.getTitle().toString());
+                        List<Shop> shopsWithinPriceRange = findShopWithinPriceRange(currDisplayShops, priceRange);
+                        mMap.clear();
+                        ShowNearbyShops(shopsWithinPriceRange);
+
+
+                        return true;
+                    }
+                });
+                popup.show(); // showing popup menu
             }
         });
     }
@@ -137,15 +157,45 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             if (state == 1) {
                 LatLngBounds latLngBounds = mMap.getProjection().getVisibleRegion().latLngBounds;
                 List<Shop> shopsWithinZoomLevel = findShopWithinZoomLevel(nearbyShopList, latLngBounds);
+                currDisplayShops = shopsWithinZoomLevel;
                 ShowNearbyShops(shopsWithinZoomLevel);
-                Toast.makeText(MapsActivity.this, "Hello Trieu", Toast.LENGTH_SHORT).show();
             }
 
             if (state == 2) {
+                currDisplayShops = nearbyShopList;
                 ShowNearbyShops(nearbyShopList);
-                Toast.makeText(MapsActivity.this, "Hello Quang", Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    // If camera view changes
+    private boolean isCameraViewChange (LatLngBounds currentCameraBounds) {
+        double currX = currentCameraBounds.southwest.latitude;
+        double currY = currentCameraBounds.northeast.longitude;
+
+        double prevX = previousCamerBounds.southwest.latitude;
+        double prevY = previousCamerBounds.northeast.longitude;
+
+        if (currX != prevX || currY != prevY) {
+            prevX = currX;
+            prevY = currY;
+            return true;
+        }
+        return false;
+    }
+
+    // Shops within price range
+    private List<Shop> findShopWithinPriceRange (List<Shop> nearbyShopList, int priceRange) {
+
+        List<Shop> shopsWithinPriceRange = new ArrayList<>();
+
+        for (Shop shop : nearbyShopList) {
+            if (shop.getPrice() <= priceRange) {
+                shopsWithinPriceRange.add(shop);
+            }
+        }
+        return shopsWithinPriceRange;
+
     }
 
     // Shop within zoom level
@@ -160,18 +210,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         for (Shop shop : nearbyShopList) {
             double shopLat = shop.getLat();
             double shopLon = shop.getLon();
-            Toast.makeText(MapsActivity.this, "Hello Toan", Toast.LENGTH_SHORT).show();
-            if (shopLat >= x1 && shopLat <= x2 && shopLon >= y1 && shopLon <= y2) {
+            if (shopLat >= x1 && shopLat <= x2 && shopLon <= y1 && shopLon >= y2) {
                 shopWithinZoomLevel.add(shop);
-                Toast.makeText(MapsActivity.this, shop.getName(), Toast.LENGTH_SHORT).show();
             }
         }
         return shopWithinZoomLevel;
     }
 
-    private boolean isBetween (double latitude, double longitude, LatLngBounds currentCameraBounds) {
-
-    }
 
     // Find nearby places from chosen location
     private List<Shop> findNearbyShops(Shop[] shops, double currLat, double currLon, double radius) {
@@ -196,7 +241,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             mMap.addMarker(markerOptions);
             markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
             // move map camera
-            mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+            //mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
             //mMap.animateCamera(CameraUpdateFactory.zoomTo(11));
             //Toast.makeText(MapsActivity.this, "Hello", Toast.LENGTH_SHORT).show();
         }
