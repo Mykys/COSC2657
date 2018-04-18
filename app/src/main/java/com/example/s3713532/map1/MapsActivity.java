@@ -2,6 +2,8 @@ package com.example.s3713532.map1;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -13,9 +15,13 @@ import android.os.AsyncTask;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
+import android.text.InputType;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.Toast;
 
@@ -32,6 +38,9 @@ import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.gson.Gson;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,6 +53,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private int state;
     private LatLngBounds previousCamerBounds;
     private List<Shop> currDisplayShops;
+    private List<String> inputString = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -132,6 +142,84 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 popup.show(); // showing popup menu
             }
         });
+
+
+
+        final EditText input = new EditText(MapsActivity.this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+
+        // This button should only be enabled when user clicks on the map and a marker is added
+        Button addShopBtn = findViewById(R.id.addShopBtn);
+        addShopBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                AlertDialog.Builder builder = new AlertDialog.Builder(MapsActivity.this);
+                LinearLayout layout = new LinearLayout(MapsActivity.this);
+                layout.setOrientation(LinearLayout.VERTICAL);
+
+                final EditText nameBox = new EditText(MapsActivity.this);
+                nameBox.setHint("Name");
+                layout.addView(nameBox);
+
+                final EditText priceBox = new EditText(MapsActivity.this);
+                priceBox.setHint("Price");
+                layout.addView(priceBox);
+
+                final EditText impressionBox = new EditText(MapsActivity.this);
+                impressionBox.setHint("Impression");
+                layout.addView(impressionBox);
+
+                final EditText addressBox = new EditText(MapsActivity.this);
+                addressBox.setHint("Address");
+                layout.addView(addressBox);
+
+                final EditText styleBox = new EditText(MapsActivity.this);
+                styleBox.setHint("Style");
+                layout.addView(styleBox);
+
+
+                builder.setView(layout);
+                builder.setTitle("Add details about shop")
+                        .setPositiveButton("Add", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+                                inputString.add(nameBox.getText().toString());
+                                inputString.add(priceBox.getText().toString());
+                                inputString.add(impressionBox.getText().toString());
+                                inputString.add(addressBox.getText().toString());
+                                inputString.add(styleBox.getText().toString());
+
+                                JSONObject postData = new JSONObject();
+
+                                try {
+                                    postData.put("name", nameBox.getText().toString());
+                                    postData.put("price", Integer.parseInt(priceBox.getText().toString()));
+                                    postData.put("impression", impressionBox.getText().toString());
+                                    postData.put("address", addressBox.getText().toString());
+                                    postData.put("lat", latitude);
+                                    postData.put("lon", longitude);
+                                    postData.put("style", styleBox.getText().toString());
+                                    postData.put("photo1", "");
+                                    postData.put("photo2", "");
+
+                                    Toast.makeText(MapsActivity.this, postData.toString(), Toast.LENGTH_LONG).show();
+                                    new SendShopDetails().execute(postData.toString());
+
+
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        })
+                        .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+                                dialogInterface.cancel();
+                            }
+                        }).create().show();
+            }
+        });
     }
 
     private class GetNearbyShops extends AsyncTask<Void, Void, Void> {
@@ -165,6 +253,36 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 currDisplayShops = nearbyShopList;
                 ShowNearbyShops(nearbyShopList);
             }
+        }
+    }
+
+    private class SendShopDetails extends AsyncTask<String, Void, String> {
+
+        @Override
+        protected String doInBackground(String... strings) {
+
+            // Error can occur here
+            //Toast.makeText(MapsActivity.this, "VinnnieeeB4", Toast.LENGTH_SHORT).show();
+            json = HttpHandler.post("http://bestlab.us:8080/places", strings[0]);
+            Toast.makeText(MapsActivity.this, json, Toast.LENGTH_SHORT).show();
+            //json = strings[0];
+            //Toast.makeText(MapsActivity.this, json, Toast.LENGTH_SHORT).show();
+
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(String s) {
+            super.onPostExecute(s);
+
+            Gson gson = new Gson();
+
+            Shop shop = gson.fromJson(json, Shop.class);
+
+            Toast.makeText(MapsActivity.this, shop.getName(), Toast.LENGTH_SHORT).show();
+
+            LatLng newShop = new LatLng(shop.getLat(), shop.getLon());
+            mMap.addMarker(new MarkerOptions().position(newShop).title(shop.getName()));
         }
     }
 

@@ -34,10 +34,10 @@
         android:weightSum="4">
 
         <Button
-            android:id="@+id/button4"
+            android:id="@+id/addShopBtn"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Button"
+            android:text="Add shop"
             android:layout_weight="1"/>
 
         <Button
