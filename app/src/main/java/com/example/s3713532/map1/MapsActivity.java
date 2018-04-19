@@ -3,8 +3,8 @@ package com.example.s3713532.map1;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.os.AsyncTask;
-import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
+import android.os.Bundle;
 import android.text.InputType;
 import android.view.MenuItem;
 import android.view.View;
@@ -177,21 +177,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                 inputString.add(addressBox.getText().toString());
                                 inputString.add(styleBox.getText().toString());
 
-                                Map<String, String> postData = new LinkedHashMap<String, String>();
+                                Map<String, String> postData = new LinkedHashMap<>();
 
                                 try {
                                     postData.put("name", nameBox.getText().toString());
                                     postData.put("price", priceBox.getText().toString());
                                     postData.put("impression", impressionBox.getText().toString());
                                     postData.put("address", addressBox.getText().toString());
-                                    postData.put("lat", String.format("%f", latitude));
-                                    postData.put("lon", String.format("%f", longitude));
+                                    postData.put("lat", String.format("%.6f", latitude));
+                                    postData.put("lon", String.format("%.6f", longitude));
                                     postData.put("style", styleBox.getText().toString());
                                     postData.put("photo1", "");
                                     postData.put("photo2", "");
 
                                     Toast.makeText(MapsActivity.this, postData.toString(), Toast.LENGTH_LONG).show();
-                                    new SendShopDetails().execute(wwwEncodeHashMap(postData));
+                                    new SendShopDetails().execute(wwwEncodeMap(postData));
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -367,7 +367,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return (dist);
     }
 
-    private String wwwEncodeHashMap(Map<String, String> params) throws UnsupportedEncodingException {
+    private String wwwEncodeMap(Map<String, String> params) throws UnsupportedEncodingException {
         StringBuilder result = new StringBuilder();
         boolean first = true;
         for(Map.Entry<String, String> entry : params.entrySet()){
@@ -390,3 +390,4 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return (rad * 180.0 / Math.PI);
     }
 }
+
