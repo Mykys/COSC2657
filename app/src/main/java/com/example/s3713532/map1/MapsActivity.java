@@ -1,8 +1,12 @@
 package com.example.s3713532.map1;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.AsyncTask;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.text.InputType;
@@ -21,6 +25,7 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.gson.Gson;
 
@@ -34,13 +39,15 @@ import java.util.Map;
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
     private GoogleMap mMap;
+    private Marker mMarker;
     private double latitude;
     private double longitude;
+
+    private LatLngBounds previousCamerBounds;
+
     private String json;
     private int state;
-    private LatLngBounds previousCamerBounds;
     private List<Shop> currDisplayShops;
-    private List<String> inputString = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,6 +58,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
+        // Start position
         latitude = 10.729339;
         longitude = 106.694286;
         currDisplayShops = new ArrayList<>();
@@ -60,8 +68,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
-        LatLng RMITVN = new LatLng(10.729339, 106.694286);
-        mMap.addMarker(new MarkerOptions().position(RMITVN).title("Marker in RMIT Vietnam"));
+        LatLng RMITVN = new LatLng(latitude, longitude);
+        mMap.addMarker(new MarkerOptions().position(RMITVN).title("Marker in RMIT Vietnam").icon(BitmapDescriptorFactory.fromResource(R.drawable.kitty)));
         mMap.moveCamera(CameraUpdateFactory.newLatLng(RMITVN));
         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(RMITVN, 12f));
 
@@ -74,9 +82,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
             @Override
             public void onMapClick(LatLng latLng) {
-                Toast.makeText(MapsActivity.this, latLng.toString(), Toast.LENGTH_SHORT).show();
+                //Toast.makeText(MapsActivity.this, latLng.toString(), Toast.LENGTH_SHORT).show();
                 latitude = latLng.latitude;
                 longitude = latLng.longitude;
+
+                //mMarker
+
+                String snippet = currentPlace(latitude, longitude);
+
+                // Find current clicked place
+                // When user clicks
+                // Check through all the markers for the correct lat and lon
+                // if it exist get the place to get all information
+                // Then display it
             }
         });
 
@@ -103,39 +121,34 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
-        final Button button1 = findViewById(R.id.button1);
-        button1.setOnClickListener(new View.OnClickListener() {
+        final Button priceBtn = findViewById(R.id.priceBtn);
+        priceBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                // Creating the instance of PopupMenu
-                PopupMenu popup = new PopupMenu(MapsActivity.this, button1);
-                //Inflating the Popup using xml file
-                popup.getMenuInflater().inflate(R.menu.popup_menu, popup.getMenu());
-
-                //registering popup with OnMenuItemClickListener
-                popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
-                    @Override
-                    public boolean onMenuItemClick(MenuItem menuItem) {
-                        Toast.makeText(MapsActivity.this, "You clicked : " + menuItem.getTitle(), Toast.LENGTH_SHORT).show();
-                        int priceRange = Integer.parseInt(menuItem.getTitle().toString());
-                        List<Shop> shopsWithinPriceRange = findShopWithinPriceRange(currDisplayShops, priceRange);
-                        mMap.clear();
-                        ShowNearbyShops(shopsWithinPriceRange);
-
-
-                        return true;
-                    }
-                });
-                popup.show(); // showing popup menu
+                createPopupMenu(priceBtn, R.menu.popup_menu);
             }
         });
 
+        final Button reviewBtn = findViewById(R.id.reviewBtn);
+        reviewBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                createPopupMenu(reviewBtn, R.menu.review_menu);
 
+            }
+        });
+
+        final Button distanceBtn = findViewById(R.id.distanceBtn);
+        distanceBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                createPopupMenu(distanceBtn, R.menu.popup_distance);
+            }
+        });
 
         final EditText input = new EditText(MapsActivity.this);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
 
-        // This button should only be enabled when user clicks on the map and a marker is added
         Button addShopBtn = findViewById(R.id.addShopBtn);
         addShopBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -165,17 +178,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 styleBox.setHint("Style");
                 layout.addView(styleBox);
 
+                final EditText photoBox1 = new EditText(MapsActivity.this);
+                photoBox1.setHint("Photo");
+                layout.addView(photoBox1);
+
+                final EditText photoBox2 = new EditText(MapsActivity.this);
+                photoBox2.setHint("Photo");
+                layout.addView(photoBox2);
+
 
                 builder.setView(layout);
                 builder.setTitle("Add details about shop")
                         .setPositiveButton("Add", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialogInterface, int i) {
-                                inputString.add(nameBox.getText().toString());
-                                inputString.add(priceBox.getText().toString());
-                                inputString.add(impressionBox.getText().toString());
-                                inputString.add(addressBox.getText().toString());
-                                inputString.add(styleBox.getText().toString());
 
                                 Map<String, String> postData = new LinkedHashMap<>();
 
@@ -190,7 +206,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                     postData.put("photo1", "");
                                     postData.put("photo2", "");
 
-                                    Toast.makeText(MapsActivity.this, postData.toString(), Toast.LENGTH_LONG).show();
                                     new SendShopDetails().execute(wwwEncodeMap(postData));
                                 } catch (Exception e) {
                                     e.printStackTrace();
@@ -203,6 +218,22 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                 dialogInterface.cancel();
                             }
                         }).create().show();
+            }
+        });
+
+        final Button infoBtn = findViewById(R.id.infoBtn);
+        infoBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                try {
+                    if (mMarker.isInfoWindowShown()) {
+                        mMarker.hideInfoWindow();
+                    } else {
+                        mMarker.showInfoWindow();
+                    }
+                } catch (NullPointerException e) {
+                    e.getMessage();
+                }
             }
         });
     }
@@ -248,9 +279,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             json = HttpHandler.post("http://bestlab.us:8080/places", strings[0]);
 
-            // Appen kraschar när den försöker öppna en Toast i bakgrunden. / R
-            //Toast.makeText(MapsActivity.this, json, Toast.LENGTH_SHORT).show();
-
             return null;
         }
 
@@ -265,8 +293,56 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             Toast.makeText(MapsActivity.this, shop.getName(), Toast.LENGTH_SHORT).show();
 
             LatLng newShop = new LatLng(shop.getLat(), shop.getLon());
-            mMap.addMarker(new MarkerOptions().position(newShop).title(shop.getName()));
+            mMap.addMarker(new MarkerOptions().position(newShop).title(shop.getName()).icon(BitmapDescriptorFactory.fromResource(R.drawable.kitty)));
         }
+    }
+
+    private String currentPlace(double latitude, double longitude) {
+
+        String snippet = null;
+        for (Shop shop : currDisplayShops) {
+            if (shop.getLat() == latitude && shop.getLon() == longitude) {
+                snippet = "Address: " + shop.getAddress() + "\n" +
+                        "Address: " + shop.getAddress() + "\n" +
+                        "Price: " + shop.getPrice() + "\n" +
+                        "Impression: " + shop.getImpression() + "\n" +
+                        "Style: " + shop.getStyle() + "\n" +
+                        "Photo1: " + shop.getPhoto1() + "\n" +
+                        "Photo2: " + shop.getPhoto2() + "\n";
+
+//                LatLng latLng = new LatLng(latitude, longitude);
+//                MarkerOptions options = new MarkerOptions()
+//                        .position(latLng)
+//                        .title(shop.getName())
+//                        .snippet(snippet);
+//
+//                mMarker = mMap.addMarker(options);
+//                mMap.addMarker(options);
+            }
+            return snippet;
+        }
+    }
+
+    // Popup menu
+    private void createPopupMenu (Button button, int menuRes) {
+        // Creating the instance of PopupMenu
+        PopupMenu popup = new PopupMenu(MapsActivity.this, button);
+        //Inflating the Popup using xml file
+        popup.getMenuInflater().inflate(menuRes, popup.getMenu());
+
+        //registering popup with OnMenuItemClickListener
+        popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+            @Override
+            public boolean onMenuItemClick(MenuItem menuItem) {
+                int priceRange = Integer.parseInt(menuItem.getTitle().toString());
+                List<Shop> shopsWithinPriceRange = findShopWithinPriceRange(currDisplayShops, priceRange);
+                mMap.clear();
+                ShowNearbyShops(shopsWithinPriceRange);
+
+                return true;
+            }
+        });
+        popup.show(); // showing popup menu
     }
 
     // If camera view changes
@@ -338,9 +414,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             MarkerOptions markerOptions = new MarkerOptions();
             LatLng latLng = new LatLng(shop.getLat(), shop.getLon());
             markerOptions.position(latLng);
-            markerOptions.title(shop.getName());
-            mMap.addMarker(markerOptions);
-            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+            markerOptions.title(shop.getName()).icon(BitmapDescriptorFactory.fromResource(R.drawable.kitty));
+            // Not sure if it should be placed here
+            mMarker = mMap.addMarker(markerOptions);
             // move map camera
             //mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
             //mMap.animateCamera(CameraUpdateFactory.zoomTo(11));
