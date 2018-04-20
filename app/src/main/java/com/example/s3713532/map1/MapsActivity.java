@@ -1,22 +1,11 @@
 package com.example.s3713532.map1;
 
-import android.Manifest;
-import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
-import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.location.Location;
-import android.location.LocationListener;
 import android.os.AsyncTask;
-import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.text.InputType;
-import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
@@ -25,24 +14,22 @@ import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.Toast;
 
-import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.CameraPosition;
-import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.gson.Gson;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -190,24 +177,22 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                 inputString.add(addressBox.getText().toString());
                                 inputString.add(styleBox.getText().toString());
 
-                                JSONObject postData = new JSONObject();
+                                Map<String, String> postData = new LinkedHashMap<>();
 
                                 try {
                                     postData.put("name", nameBox.getText().toString());
-                                    postData.put("price", Integer.parseInt(priceBox.getText().toString()));
+                                    postData.put("price", priceBox.getText().toString());
                                     postData.put("impression", impressionBox.getText().toString());
                                     postData.put("address", addressBox.getText().toString());
-                                    postData.put("lat", latitude);
-                                    postData.put("lon", longitude);
+                                    postData.put("lat", String.format("%.6f", latitude));
+                                    postData.put("lon", String.format("%.6f", longitude));
                                     postData.put("style", styleBox.getText().toString());
                                     postData.put("photo1", "");
                                     postData.put("photo2", "");
 
                                     Toast.makeText(MapsActivity.this, postData.toString(), Toast.LENGTH_LONG).show();
-                                    new SendShopDetails().execute(postData.toString());
-
-
-                                } catch (JSONException e) {
+                                    new SendShopDetails().execute(wwwEncodeMap(postData));
+                                } catch (Exception e) {
                                     e.printStackTrace();
                                 }
                             }
@@ -261,11 +246,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         @Override
         protected String doInBackground(String... strings) {
 
-            // Error can occur here
-            //Toast.makeText(MapsActivity.this, "VinnnieeeB4", Toast.LENGTH_SHORT).show();
             json = HttpHandler.post("http://bestlab.us:8080/places", strings[0]);
-            Toast.makeText(MapsActivity.this, json, Toast.LENGTH_SHORT).show();
-            //json = strings[0];
+
+            // Appen kraschar när den försöker öppna en Toast i bakgrunden. / R
             //Toast.makeText(MapsActivity.this, json, Toast.LENGTH_SHORT).show();
 
             return null;
@@ -384,6 +367,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return (dist);
     }
 
+    private String wwwEncodeMap(Map<String, String> params) throws UnsupportedEncodingException {
+        StringBuilder result = new StringBuilder();
+        boolean first = true;
+        for(Map.Entry<String, String> entry : params.entrySet()){
+            if (first)
+                first = false;
+            else
+                result.append("&");
+            result.append(URLEncoder.encode(entry.getKey(), "UTF-8"));
+            result.append("=");
+            result.append(URLEncoder.encode(entry.getValue(), "UTF-8"));
+        }
+        return result.toString();
+    }
+
     private double deg2rad(double deg) {
         return (deg * Math.PI / 180.0);
     }
@@ -392,3 +390,4 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return (rad * 180.0 / Math.PI);
     }
 }
+
